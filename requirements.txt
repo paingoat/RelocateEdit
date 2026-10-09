@@ -11,10 +11,12 @@ pyyaml==6.0.1
 omegaconf==2.3.0
 einops==0.7.0
 timm==0.4.12
-transformers==4.34.0
+# 4.36 keeps CLIPTokenizer (what SEEM calls) and allows huggingface_hub>=0.19,
+# which Gradio 4.44 requires. tokenizers 0.14.1 cannot: it demands hub<0.18.
+transformers==4.36.2
 huggingface_hub==0.23.5
 hf_transfer==0.1.8
-tokenizers==0.14.1
+tokenizers==0.15.2
 sentencepiece==0.1.99
 ftfy==6.1.1
 regex==2023.10.3

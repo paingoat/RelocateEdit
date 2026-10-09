@@ -134,7 +134,7 @@ DINOv2 rời không bắt buộc. Checkpoint AnyDoor đã chứa weight ViT-g. C
 
 Cài lại riêng từng phần: `bash scripts/01_create_env.sh` hoặc `bash scripts/02_download_weights.sh`.
 
-Env dùng một bộ thư viện cho cả bốn model. Code training và các pin xung đột nhau (Lightning 1.2 với 1.5, Gradio 3 với 4, transformers 4.19 với 4.34) không được cài. Chi tiết phần code giữ lại và chỗ đã sửa nằm ở [third_party/README.md](third_party/README.md).
+Env dùng một bộ thư viện cho cả bốn model. Code training và các pin xung đột nhau (Lightning 1.2 với 1.5, Gradio 3 với 4, transformers 4.19) không được cài. Transformers ở đây là 4.36.2 để vừa gọi được CLIP tokenizer của SEEM vừa thỏa Gradio. Chi tiết phần code giữ lại và chỗ đã sửa nằm ở [third_party/README.md](third_party/README.md).
 
 Pillow bị khóa ở 9.5 vì detectron2 còn gọi `Image.LINEAR`, hàm đã bị xóa ở Pillow 10.
 
