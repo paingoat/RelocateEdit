@@ -136,7 +136,7 @@ Cài lại riêng từng phần: `bash scripts/01_create_env.sh` hoặc `bash sc
 
 Env dùng một bộ thư viện cho cả bốn model. Code training và các pin xung đột nhau (Lightning 1.2 với 1.5, Gradio 3 với 4, transformers 4.19) không được cài. Transformers ở đây là 4.36.2 để vừa gọi được CLIP tokenizer của SEEM vừa thỏa Gradio. Chi tiết phần code giữ lại và chỗ đã sửa nằm ở [third_party/README.md](third_party/README.md).
 
-Pillow bị khóa ở 9.5 vì detectron2 còn gọi `Image.LINEAR`, hàm đã bị xóa ở Pillow 10.
+Pillow bị khóa ở 9.5 vì detectron2 còn gọi `Image.LINEAR`, hàm đã bị xóa ở Pillow 10. Script cũng cài GCC 11 và dùng nó khi build detectron2: `nvcc` của CUDA 11.8 từ chối GCC mới hơn 11, trong khi Ubuntu 24.04 mặc định là GCC 13.
 
 ## Chạy Gradio, có link public
 
