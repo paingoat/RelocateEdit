@@ -33,37 +33,14 @@ class SwiGLUFFN(nn.Module):
         return self.w3(hidden)
 
 
-class SwiGLU(nn.Module):
-    """Drop-in for ``xformers.ops.SwiGLU`` with parameters ``w1``, ``w2``, ``w3``.
+class SwiGLUFFNFused(SwiGLUFFN):
+    """SwiGLU with the DINOv2 hidden-size rounding and packed ``w12`` weights.
 
-    AnyDoor's ViT-g checkpoint uses those names. Newer xformers builds sometimes
-    pack the same matrices, so this module is used even when xformers is installed.
-    Attention can still use xformers; only the FFN is local.
+    ``anydoor.ckpt`` stores ``mlp.w12``, the fused first projection. A separate
+    ``w1``/``w2`` module cannot load that checkpoint. xformers is not used here,
+    because its ``SwiGLU`` parameter names change between releases. Attention
+    still uses xformers.
     """
-
-    def __init__(
-        self,
-        in_features: int,
-        hidden_features: Optional[int] = None,
-        out_features: Optional[int] = None,
-        bias: bool = True,
-        **kwargs,
-    ) -> None:
-        super().__init__()
-        out_features = out_features or in_features
-        hidden_features = hidden_features or in_features
-        self.w1 = nn.Linear(in_features, hidden_features, bias=bias)
-        self.w2 = nn.Linear(in_features, hidden_features, bias=bias)
-        self.w3 = nn.Linear(hidden_features, out_features, bias=bias)
-
-    def forward(self, x: Tensor) -> Tensor:
-        return self.w3(F.silu(self.w1(x)) * self.w2(x))
-
-
-XFORMERS_AVAILABLE = False
-
-
-class SwiGLUFFNFused(SwiGLU):
     def __init__(
         self,
         in_features: int,

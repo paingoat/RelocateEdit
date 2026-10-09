@@ -38,7 +38,7 @@ Each folder still has its upstream `LICENSE`.
 - `ldm/modules/encoders/modules.py`: only `FrozenDinoV2Encoder` remains, so `open_clip` and the text-encoder stack are not imported. The ViT-g is built with `vit_giant2(...)`. Its weight path is a constructor argument and may be empty, because the AnyDoor checkpoint already contains those weights.
 - `ldm/models/diffusion/ddpm.py`: `rank_zero_only` falls back to the Lightning 2.x path.
 - `cldm/model.py`: `torch.load(..., weights_only=False)`.
-- `dinov2/layers/swiglu_ffn.py`: the FFN is always the local `w1`/`w2`/`w3` module, including the same hidden-size rounding as `SwiGLUFFNFused`. That matches the released checkpoint even when a newer xformers packs `SwiGLU` differently. xformers can still accelerate attention.
+- `dinov2/layers/swiglu_ffn.py`: the FFN is the local packed `w12`/`w3` module, with the same hidden-size rounding as upstream `SwiGLUFFNFused`. That matches `anydoor.ckpt`. xformers `SwiGLU` is not used, because its parameter names differ across releases. xformers can still accelerate attention.
 - `configs/anydoor.yaml` in this repo (not upstream): `cond_stage_config.params.weight` is null and the encoder is constructed on CPU. The wrapper moves the whole model afterwards.
 
 ## Import roots
