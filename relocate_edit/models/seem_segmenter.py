@@ -68,7 +68,9 @@ class SeemSegmenter(BaseModelWrapper):
 
         resized, prompt, region, points = self._prepare(image, scribble, mode)
         height, width = resized.shape[:2]
-        images = torch.from_numpy(np.ascontiguousarray(resized)).permute(2, 0, 1).to(self.device)
+        # PIL arrays are often read-only. from_numpy would alias that buffer.
+        pixels = np.array(resized, dtype=np.uint8, copy=True)
+        images = torch.from_numpy(pixels).permute(2, 0, 1).to(self.device)
         stroke = torch.from_numpy(prompt.astype(np.float32))[None, None].to(self.device)
         stroke = stroke > 0.5
         for key in ("spatial", "visual", "grounding", "audio"):

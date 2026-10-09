@@ -14,10 +14,11 @@ import torch
 from relocate_edit.models.base import BaseModelWrapper
 from relocate_edit.ops.anydoor_data_utils import (
     box2squre,
-    box_in_box,
+    clip_inner_box,
     expand_bbox,
     expand_image_mask,
     get_bbox_from_mask,
+    nonempty_slice,
     pad_to_square,
     sobel,
 )
@@ -127,7 +128,8 @@ def process_pairs(ref_image, ref_mask, tar_image, tar_mask, max_ratio=0.8, enabl
     ref_box = get_bbox_from_mask(ref_mask)
     ref_mask_3 = np.stack([ref_mask, ref_mask, ref_mask], -1)
     masked_ref = ref_image * ref_mask_3 + 255 * (1 - ref_mask_3)
-    y1, y2, x1, x2 = ref_box
+    y1, y2 = nonempty_slice(ref_box[0], ref_box[1], masked_ref.shape[0])
+    x1, x2 = nonempty_slice(ref_box[2], ref_box[3], masked_ref.shape[1])
     masked_ref = masked_ref[y1:y2, x1:x2, :]
     ref_mask = ref_mask[y1:y2, x1:x2]
 
@@ -147,11 +149,12 @@ def process_pairs(ref_image, ref_mask, tar_image, tar_mask, max_ratio=0.8, enabl
     tar_box_full = tar_box
     tar_box_crop = expand_bbox(tar_image, tar_box, ratio=(1.3, 3.0))
     tar_box_crop = box2squre(tar_image, tar_box_crop)
-    y1, y2, x1, x2 = tar_box_crop
+    y1, y2 = nonempty_slice(tar_box_crop[0], tar_box_crop[1], tar_image.shape[0])
+    x1, x2 = nonempty_slice(tar_box_crop[2], tar_box_crop[3], tar_image.shape[1])
+    tar_box_crop = (y1, y2, x1, x2)
     cropped = tar_image[y1:y2, x1:x2, :]
     cropped_mask = tar_mask[y1:y2, x1:x2]
-    inner = box_in_box(tar_box, tar_box_crop)
-    iy1, iy2, ix1, ix2 = inner
+    iy1, iy2, ix1, ix2 = clip_inner_box(tar_box, tar_box_crop, cropped.shape[:2])
 
     collage_rgb = cv2_resize(ref_image_collage, (ix2 - ix1, iy2 - iy1))
     collage = cropped.copy()

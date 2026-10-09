@@ -220,7 +220,9 @@ class DepthAnythingV2(nn.Module):
         ])
         
         h, w = raw_image.shape[:2]
-        
+        # A channel-reversed view is not C-contiguous, and cvtColor rejects it.
+        if not raw_image.flags.c_contiguous:
+            raw_image = raw_image.copy()
         image = cv2.cvtColor(raw_image, cv2.COLOR_BGR2RGB) / 255.0
         
         image = transform({'image': image})['image']

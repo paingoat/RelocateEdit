@@ -111,19 +111,24 @@ class LamaInpainter(BaseModelWrapper):
         }
         index = 0 if self.device.index is None else int(self.device.index)
         cfg = self.config
-        with torch.enable_grad():
-            predicted = refine_predict(
-                batch,
-                self.handle,
-                gpu_ids=str(index),
-                modulo=8,
-                n_iters=int(cfg.n_iters),
-                lr=float(cfg.lr),
-                min_side=int(cfg.min_side),
-                max_scales=int(cfg.max_scales),
-                px_budget=int(cfg.px_budget),
-            )
-        self.model.to(self.device)
+        try:
+            with torch.enable_grad():
+                predicted = refine_predict(
+                    batch,
+                    self.handle,
+                    gpu_ids=str(index),
+                    modulo=8,
+                    n_iters=int(cfg.n_iters),
+                    lr=float(cfg.lr),
+                    min_side=int(cfg.min_side),
+                    max_scales=int(cfg.max_scales),
+                    px_budget=int(cfg.px_budget),
+                )
+        finally:
+            # Refinement moves generator blocks onto the GPU and keeps them there
+            # even when it raises. Put the whole net back before the next call.
+            self.model.to(self.device)
+            self.handle.to(self.device)
         out = predicted[0].permute(1, 2, 0).float().cpu().numpy()
         out = np.clip(out * 255.0, 0, 255).astype(np.uint8)
         note = "feature refinement"

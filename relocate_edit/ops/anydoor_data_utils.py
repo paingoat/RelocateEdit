@@ -5,12 +5,12 @@ Only the functions used by the inference collage are kept. Masks are 0/1.
 
 from __future__ import annotations
 
-import cv2
 import numpy as np
 
 
 def sobel(img, mask, thresh=50):
     """High-frequency collage of the reference object."""
+    import cv2
     height, width = img.shape[0], img.shape[1]
     img = cv2.resize(img, (256, 256))
     mask = (cv2.resize(mask.astype(np.float32), (256, 256)) > 0.5).astype(np.uint8)
@@ -107,3 +107,33 @@ def box_in_box(small_box, big_box):
     y1, y2, x1, x2 = small_box
     y1_b, _, x1_b, _ = big_box
     return (y1 - y1_b, y2 - y1_b, x1 - x1_b, x2 - x1_b)
+
+
+def clip_inner_box(small_box, big_box, crop_hw):
+    """Rectangle of ``small_box`` inside the crop, in crop coordinates.
+
+    ``box2squre`` clips the crop to the image, so the target box can stick out
+    by a pixel. A negative start index wraps around in NumPy instead of
+    meaning "before the crop".
+    """
+    y1, y2, x1, x2 = box_in_box(small_box, big_box)
+    crop_h, crop_w = crop_hw
+    y1 = max(0, int(y1))
+    x1 = max(0, int(x1))
+    y2 = min(int(crop_h), int(y2))
+    x2 = min(int(crop_w), int(x2))
+    if y2 - y1 < 2 or x2 - x1 < 2:
+        raise ValueError(
+            "The target mask is too close to the image border for AnyDoor to build a collage. "
+            "Choose a point a little further inside."
+        )
+    return y1, y2, x1, x2
+
+
+def nonempty_slice(start, end, limit):
+    """Half-open slice. A one-pixel box has equal ends and would otherwise be empty."""
+    start = max(0, int(start))
+    end = int(end)
+    if end <= start:
+        end = start + 1
+    return start, min(int(limit), end)
