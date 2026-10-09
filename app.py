@@ -17,19 +17,27 @@ from relocate_edit.pipeline import RelocatePipeline
 def _patch_gradio_schema():
     """Gradio 4.44 walks API schemas and assumes every node is a dict.
 
-    Pydantic 2.10 writes ``additionalProperties: true``. Gradio then evaluates
-    ``"const" in True`` and the page fails to render.
+    Pydantic 2.10 writes ``additionalProperties: true``. That boolean is passed
+    back into the schema walker, which then raises APIInfoParseError and the
+    page never renders.
     """
     import gradio_client.utils as client_utils
 
-    original = client_utils.get_type
+    original_get_type = client_utils.get_type
+    original_to_python = client_utils._json_schema_to_python_type
 
     def get_type(schema):
         if not isinstance(schema, dict):
             return "Any"
-        return original(schema)
+        return original_get_type(schema)
+
+    def to_python(schema, defs):
+        if not isinstance(schema, dict):
+            return "Any"
+        return original_to_python(schema, defs)
 
     client_utils.get_type = get_type
+    client_utils._json_schema_to_python_type = to_python
 
 
 def parse_args():
