@@ -8,6 +8,105 @@ from relocate_edit.types import Session
 from relocate_edit.ui import callbacks as cb
 
 
+# Gradio 4.44 paints a full-size upload button over every image (its `.center` /
+# `.flex` rules override `.hidden`). Clicks hit that button, so Image.select never
+# runs. The page script reads the click against the real bitmap and submits it.
+_TARGET_CSS = """
+#target-view { cursor: crosshair; }
+#target-view img {
+    object-fit: contain !important;
+    cursor: crosshair !important;
+}
+#target-view button.hidden,
+#target-view [aria-label="Remove Image"] {
+    display: none !important;
+    pointer-events: none !important;
+}
+"""
+
+_TARGET_HEAD = """
+<script>
+(function () {
+    if (window.__relocateTargetInstalled) return;
+    window.__relocateTargetInstalled = true;
+
+    function pointOnImage(img, evt) {
+        var rect = img.getBoundingClientRect();
+        var nw = img.naturalWidth;
+        var nh = img.naturalHeight;
+        if (!nw || !nh || !rect.width || !rect.height) return null;
+        var scale = Math.min(rect.width / nw, rect.height / nh);
+        var dw = nw * scale;
+        var dh = nh * scale;
+        var left = rect.left + (rect.width - dw) / 2;
+        var top = rect.top + (rect.height - dh) / 2;
+        var x = (evt.clientX - left) / scale;
+        var y = (evt.clientY - top) / scale;
+        if (x < 0 || y < 0 || x >= nw || y >= nh) return null;
+        return [Math.round(x), Math.round(y)];
+    }
+
+    function largestImage(root) {
+        var imgs = root.querySelectorAll("img");
+        var img = null;
+        var best = 0;
+        for (var i = 0; i < imgs.length; i++) {
+            var rect = imgs[i].getBoundingClientRect();
+            var area = rect.width * rect.height;
+            if (area > best) {
+                best = area;
+                img = imgs[i];
+            }
+        }
+        return img;
+    }
+
+    function pickButton() {
+        // elem_id is copied onto the block wrapper and the <button>, so the
+        // first match is the wrapper. Click the real button or the event is lost.
+        var nodes = document.querySelectorAll("#target-pick");
+        for (var i = 0; i < nodes.length; i++) {
+            if (nodes[i].tagName === "BUTTON" && !nodes[i].disabled) return nodes[i];
+        }
+        for (var j = 0; j < nodes.length; j++) {
+            var inner = nodes[j].querySelector("button:not([disabled])");
+            if (inner) return inner;
+        }
+        return null;
+    }
+
+    document.addEventListener("click", function (evt) {
+        var root = document.getElementById("target-view");
+        if (!root || !root.contains(evt.target)) return;
+        var img = largestImage(root);
+        if (!img) return;
+        var point = pointOnImage(img, evt);
+        if (!point) return;
+        var pick = pickButton();
+        if (!pick) return;
+        var now = Date.now();
+        if (window.__relocatePickAt && now - window.__relocatePickAt < 200) {
+            evt.preventDefault();
+            evt.stopPropagation();
+            return;
+        }
+        window.__relocatePickAt = now;
+        window.__relocateTargetXY = point;
+        evt.preventDefault();
+        evt.stopPropagation();
+        pick.click();
+    }, true);
+})();
+</script>
+"""
+
+_PICK_JS = """(session, x, y) => {
+    const point = window.__relocateTargetXY;
+    if (!point) return [session, x, y];
+    return [session, point[0], point[1]];
+}"""
+
+
 def build_demo(pipeline):
     cfg = pipeline.config
 
@@ -19,7 +118,7 @@ def build_demo(pipeline):
                 raise gr.Error(str(exc)) from exc
         return wrapped
 
-    with gr.Blocks(title="RelocateEdit") as demo:
+    with gr.Blocks(title="RelocateEdit", css=_TARGET_CSS, head=_TARGET_HEAD) as demo:
         session = gr.State(Session())
         gr.Markdown(
             """
@@ -51,17 +150,26 @@ Di chuyển một vật trong ảnh. Làm lần lượt từ trên xuống dư�
 
         gr.Markdown("## Bước B — chọn điểm đích")
         with gr.Row():
-            # Non-interactive: the user only clicks to pick a point, never uploads
-            # or clears here, and a static image gets the selectable cursor.
             target_view = gr.Image(
                 label="Bấm vào ảnh để chọn điểm đích",
                 type="numpy",
                 interactive=False,
                 show_download_button=False,
+                show_fullscreen_button=False,
+                elem_id="target-view",
                 height=520,
             )
+        click_x = gr.Number(value=0, visible=False)
+        click_y = gr.Number(value=0, visible=False)
+        pick_target = gr.Button(elem_id="target-pick", visible=False)
         confirm.click(cb.confirm_scribble, [editor, session], [session, target_view, status])
-        target_view.select(cb.select_target, [session], [session, target_view, status])
+        pick_target.click(
+            cb.select_target_at,
+            [session, click_x, click_y],
+            [session, target_view, status],
+            js=_PICK_JS,
+            show_progress="hidden",
+        )
 
         run_all_button = gr.Button("Chạy toàn bộ pipeline", variant="primary")
 

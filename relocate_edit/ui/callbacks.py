@@ -27,17 +27,16 @@ def confirm_scribble(editor_value, session: Session):
     return session, view, status
 
 
-def select_target(session: Session, evt: gr.SelectData):
-    # Gradio only injects the click coordinates when a positional parameter is
-    # annotated gr.SelectData. A *args signature silently receives nothing.
-    if session.image is None:
+def select_target_at(session: Session, x, y):
+    # Coordinates come from a page script, not gr.Image.select. Gradio 4.44
+    # leaves an invisible upload button over the picture, so that event never fires.
+    if session is None or session.image is None:
         raise gr.Error("Xác nhận nét khoanh trước khi chọn điểm đích.")
-    index = evt.index
-    if index is None:
-        raise gr.Error("Không đọc được tọa độ cú click. Hãy bấm trực tiếp lên ảnh.")
-    if isinstance(index[0], (list, tuple)):
-        index = index[0]
-    x, y = int(index[0]), int(index[1])
+    try:
+        x = int(round(float(x)))
+        y = int(round(float(y)))
+    except (TypeError, ValueError):
+        raise gr.Error("Không đọc được tọa độ cú click. Hãy bấm trực tiếp lên ảnh.") from None
     height, width = session.image.shape[:2]
     x = max(0, min(x, width - 1))
     y = max(0, min(y, height - 1))
