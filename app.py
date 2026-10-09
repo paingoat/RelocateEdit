@@ -65,6 +65,7 @@ def main():
         share=args.share,
         server_name=args.server_name,
         server_port=args.server_port,
+        show_error=True,
         allowed_paths=[str(Path(config.outputs_dir))],
     )
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gradio as gr
 import numpy as np
 
 from relocate_edit.ops.mask_ops import centroid_xy, resize_mask
@@ -26,20 +27,20 @@ def confirm_scribble(editor_value, session: Session):
     return session, view, status
 
 
-def select_target(*args):
-    session = next((arg for arg in args if isinstance(arg, Session)), None)
-    evt = next((arg for arg in args if hasattr(arg, "index") and not isinstance(arg, Session)), None)
-    if session is None or evt is None:
-        raise ValueError("Không đọc được tọa độ cú click. Hãy bấm trực tiếp lên ảnh.")
+def select_target(session: Session, evt: gr.SelectData):
+    # Gradio only injects the click coordinates when a positional parameter is
+    # annotated gr.SelectData. A *args signature silently receives nothing.
     if session.image is None:
-        raise ValueError("Xác nhận nét khoanh trước khi chọn điểm đích.")
+        raise gr.Error("Xác nhận nét khoanh trước khi chọn điểm đích.")
     index = evt.index
+    if index is None:
+        raise gr.Error("Không đọc được tọa độ cú click. Hãy bấm trực tiếp lên ảnh.")
     if isinstance(index[0], (list, tuple)):
         index = index[0]
     x, y = int(index[0]), int(index[1])
     height, width = session.image.shape[:2]
-    if not (0 <= x < width and 0 <= y < height):
-        raise ValueError(f"Điểm ({x}, {y}) nằm ngoài ảnh.")
+    x = max(0, min(x, width - 1))
+    y = max(0, min(y, height - 1))
     session.target_xy = (x, y)
     session.relocate = None
     session.insert = None

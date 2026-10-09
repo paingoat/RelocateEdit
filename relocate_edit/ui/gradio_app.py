@@ -51,7 +51,15 @@ Di chuyển một vật trong ảnh. Làm lần lượt từ trên xuống dư�
 
         gr.Markdown("## Bước B — chọn điểm đích")
         with gr.Row():
-            target_view = gr.Image(label="Bấm vào ảnh để chọn điểm đích", type="numpy", sources=[], interactive=True, height=520)
+            # Non-interactive: the user only clicks to pick a point, never uploads
+            # or clears here, and a static image gets the selectable cursor.
+            target_view = gr.Image(
+                label="Bấm vào ảnh để chọn điểm đích",
+                type="numpy",
+                interactive=False,
+                show_download_button=False,
+                height=520,
+            )
         confirm.click(cb.confirm_scribble, [editor, session], [session, target_view, status])
         target_view.select(cb.select_target, [session], [session, target_view, status])
 
