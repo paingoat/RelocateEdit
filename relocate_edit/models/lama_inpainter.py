@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import yaml
+from omegaconf import OmegaConf
 
 from relocate_edit.models.base import BaseModelWrapper
 from relocate_edit.ops.mask_ops import dilate_mask
@@ -50,12 +50,7 @@ class LamaInpainter(BaseModelWrapper):
         ensure_on_path(vendor_path("lama"))
         from saicinpainting.training.modules.ffc import FFCResNetGenerator
 
-        with open(config_path, encoding="utf-8") as handle:
-            raw = yaml.safe_load(handle)
-        generator_cfg = dict(raw["generator"])
-        generator_cfg.pop("kind", None)
-        accepted = set(inspect.signature(FFCResNetGenerator.__init__).parameters) - {"self"}
-        generator_cfg = {key: value for key, value in generator_cfg.items() if key in accepted}
+        generator_cfg = _generator_kwargs(config_path)
         generator = FFCResNetGenerator(**generator_cfg)
 
         state = torch_load(checkpoint, map_location="cpu")
@@ -150,6 +145,24 @@ class LamaInpainter(BaseModelWrapper):
         for module in self.model.modules():
             if isinstance(module, torch.nn.ReLU):
                 module.inplace = False
+
+
+def _generator_kwargs(config_path: Path) -> dict:
+    """big-lama stores ratios as ``${generator...}`` interpolations.
+
+    ``yaml.safe_load`` leaves those strings in place. ``in_channels * ratio``
+    then repeats the string, and ``int()`` raises.
+    """
+    from saicinpainting.training.modules.ffc import FFCResNetGenerator
+
+    loaded = OmegaConf.load(config_path)
+    if "generator" not in loaded:
+        raise RuntimeError(f"{config_path} has no generator section.")
+    # Resolve only this node. The rest of the file references ${env:TORCH_HOME}.
+    generator = OmegaConf.to_container(loaded.generator, resolve=True)
+    generator.pop("kind", None)
+    accepted = set(inspect.signature(FFCResNetGenerator.__init__).parameters) - {"self"}
+    return {key: value for key, value in generator.items() if key in accepted}
 
 
 def _pad_modulo(tensor: torch.Tensor, modulo: int = 8) -> torch.Tensor:
