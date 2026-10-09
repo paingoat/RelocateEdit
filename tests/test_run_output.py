@@ -69,6 +69,9 @@ class StreamRunTest(unittest.TestCase):
                 assert step in seen
 
         session = Session()
+        session.image = np.zeros((4, 4, 3), dtype=np.uint8)
+        session.scribble = np.ones((4, 4), dtype=bool)
+        session.target_xy = (1, 1)
         updates = list(run_all(
             session, "loop", "relative", 1.0, "shift", 15, True,
             30, 4.5, 1.0, 42, True, Pipeline(),
@@ -83,6 +86,52 @@ class StreamRunTest(unittest.TestCase):
         self.assertEqual(updates[4][10], "clean")
         self.assertEqual(updates[5][13], "result")
         self.assertIn("Xong toàn bộ", updates[5][-1])
+
+    def test_full_run_rejects_a_missing_target_before_any_model(self):
+        try:
+            from relocate_edit.types import Session
+            from relocate_edit.ui.callbacks import run_all
+        except ModuleNotFoundError as exc:
+            self.skipTest(str(exc))
+        started = []
+
+        class Pipeline:
+            def run_segment(self, session, prompt_mode=None):
+                started.append("1")
+
+        session = Session()
+        session.image = np.zeros((4, 4, 3), dtype=np.uint8)
+        session.scribble = np.ones((4, 4), dtype=bool)
+        with self.assertRaises(ValueError):
+            next(run_all(
+                session, "loop", "relative", 1.0, "shift", 15, True,
+                30, 4.5, 1.0, 42, True, Pipeline(),
+            ))
+        self.assertEqual(started, [])
+
+    def test_a_new_photo_clears_the_target_until_the_next_click(self):
+        try:
+            from relocate_edit.types import Session
+            from relocate_edit.ui.callbacks import confirm_scribble, select_target_at
+        except ModuleNotFoundError as exc:
+            self.skipTest(str(exc))
+        image = np.zeros((20, 30, 3), dtype=np.uint8)
+        layer = np.zeros((20, 30, 4), dtype=np.uint8)
+        layer[4:12, 6:16, 3] = 255
+        editor = {"background": image, "layers": [layer], "composite": None}
+        session = Session()
+        session.target_xy = (2, 2)
+        session.relocate = object()
+        pipeline = SimpleNamespace(
+            save_scribble=lambda _session, _view: "output/run",
+            save_target=lambda _session, _view: None,
+        )
+        session, _, _ = confirm_scribble(editor, session, pipeline)
+        self.assertIsNone(session.target_xy)
+        self.assertIsNone(session.relocate)
+        session, _, status = select_target_at(session, 9.2, 7.6, pipeline)
+        self.assertEqual(session.target_xy, (9, 8))
+        self.assertIn("(9, 8)", status)
 
 
 if __name__ == "__main__":

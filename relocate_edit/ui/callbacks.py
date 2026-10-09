@@ -94,6 +94,10 @@ def run_insert(session, steps, guidance, strength, seed, shape_control, pipeline
 def run_all(session, prompt_mode, depth_mode, scale_factor, boundary, dilation, refine,
             steps, guidance, strength, seed, shape_control, pipeline):
     """Yield after each stage so the panels update before the next model runs."""
+    if session is None or session.image is None or session.scribble is None or not session.scribble.any():
+        raise ValueError("Upload an image and confirm the scribble first.")
+    if session.target_xy is None:
+        raise ValueError("Click the image to choose the target point.")
     session.depth = None
     session.relocate = None
     session.inpaint = None

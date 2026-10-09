@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from relocate_edit.utils.devices import move_module
+from relocate_edit.utils.devices import move_module, sync_stored_device
 
 
 class BaseModelWrapper:
@@ -26,8 +26,9 @@ class BaseModelWrapper:
         self.device = torch.device(device)
         if self.model is not None:
             move_module(self.model, self.device)
-            if hasattr(self.model, "device"):
-                self.model.device = self.device
+            # AnyDoor is a LightningModule. Its ``device`` is a read-only
+            # property, so the second activate() used to crash here.
+            sync_stored_device(self.model, self.device)
         return self
 
     def require_cuda(self):

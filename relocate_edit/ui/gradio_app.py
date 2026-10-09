@@ -46,41 +46,68 @@ _TARGET_HEAD = """
         return [Math.round(x), Math.round(y)];
     }
 
-    function largestImage(root) {
-        var imgs = root.querySelectorAll("img");
-        var img = null;
-        var best = 0;
-        for (var i = 0; i < imgs.length; i++) {
-            var rect = imgs[i].getBoundingClientRect();
-            var area = rect.width * rect.height;
-            if (area > best) {
-                best = area;
-                img = imgs[i];
-            }
-        }
-        return img;
-    }
-
-    function pickButton() {
-        // elem_id is copied onto the block wrapper and the <button>, so the
-        // first match is the wrapper. Click the real button or the event is lost.
-        var nodes = document.querySelectorAll("#target-pick");
-        for (var i = 0; i < nodes.length; i++) {
-            if (nodes[i].tagName === "BUTTON" && !nodes[i].disabled) return nodes[i];
-        }
-        for (var j = 0; j < nodes.length; j++) {
-            var inner = nodes[j].querySelector("button:not([disabled])");
-            if (inner) return inner;
+    function viewOf(node) {
+        while (node && node !== document) {
+            if (node.id === "target-view") return node;
+            node = node.parentNode;
         }
         return null;
     }
 
+    function targetView(evt) {
+        var root = viewOf(evt.target);
+        if (root) return root;
+        // After the picture is replaced, Gradio can stack a full-size upload
+        // button over the new bitmap. The click target is that button, so walk
+        // the elements underneath it.
+        if (!document.elementsFromPoint) return null;
+        var stack = document.elementsFromPoint(evt.clientX, evt.clientY);
+        for (var i = 0; i < stack.length; i++) {
+            root = viewOf(stack[i]);
+            if (root) return root;
+        }
+        return null;
+    }
+
+    function pointInView(root, evt) {
+        var imgs = root.querySelectorAll("img");
+        var best = null;
+        var bestArea = 0;
+        for (var i = 0; i < imgs.length; i++) {
+            var img = imgs[i];
+            if (!img.naturalWidth || !img.naturalHeight) continue;
+            var rect = img.getBoundingClientRect();
+            var area = rect.width * rect.height;
+            if (area < 32 * 32) continue;
+            var point = pointOnImage(img, evt);
+            if (point && area >= bestArea) {
+                best = point;
+                bestArea = area;
+            }
+        }
+        return best;
+    }
+
+    function pickButton() {
+        // elem_id is copied onto the block wrapper and the <button>. A long
+        // run disables every button, and a disabled button drops .click().
+        // Take the last match: a re-render can leave a stale copy first.
+        var nodes = document.querySelectorAll("#target-pick");
+        var found = null;
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            if (node.tagName === "BUTTON") found = node;
+            if (!node.querySelectorAll) continue;
+            var inner = node.querySelectorAll("button");
+            if (inner.length) found = inner[inner.length - 1];
+        }
+        return found;
+    }
+
     document.addEventListener("click", function (evt) {
-        var root = document.getElementById("target-view");
-        if (!root || !root.contains(evt.target)) return;
-        var img = largestImage(root);
-        if (!img) return;
-        var point = pointOnImage(img, evt);
+        var root = targetView(evt);
+        if (!root) return;
+        var point = pointInView(root, evt);
         if (!point) return;
         var pick = pickButton();
         if (!pick) return;
@@ -94,6 +121,8 @@ _TARGET_HEAD = """
         window.__relocateTargetXY = point;
         evt.preventDefault();
         evt.stopPropagation();
+        pick.disabled = false;
+        pick.removeAttribute("disabled");
         pick.click();
     }, true);
 })();
