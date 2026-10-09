@@ -83,25 +83,46 @@ Chạy trên Linux có GPU NVIDIA. Script cài CUDA toolkit 11.8 trong conda và
 | --- | --- |
 | GPU | 24 GB trở lên. AnyDoor để fp32 khoảng 11 GB weight, cộng SEEM và depth khoảng 1.3 GB mỗi cái. Trên 24 GB hãy bật `--offload` để mỗi lúc chỉ một model nằm trên GPU. 40 GB có thể để cả bốn model trên GPU. |
 | RAM | Khoảng 32 GB khi giải nén checkpoint AnyDoor. File gốc khoảng 17 GB vì còn optimizer state. Script chỉ giữ `state_dict`. |
-| Đĩa | Khoảng 60 GB trong lúc tải (file gốc + bản đã cắt + cache Hugging Face + big-lama + SEEM + depth). Sau khi xóa file gốc AnyDoor còn khoảng 30 GB. |
+| Đĩa | Khoảng 60 GB trong lúc tải. Cache Hugging Face nằm ở `/workspace/data` (tạo sẵn nếu chưa có). Sau khi xóa file gốc AnyDoor còn khoảng 30 GB. |
 | Hệ điều hành | Ubuntu trên RunPod. Script dùng `apt-get`, Miniconda và `bash`. |
 
 Depth Anything V2 **Large** có weight CC-BY-NC-4.0. Bản Small (Apache-2.0) không phải mặc định vì bản Large ổn định hơn cho ảnh thường.
 
+## Hugging Face
+
+Không repo nào trong pipeline bắt buộc bấm approve trên Hugging Face. API `gated` của từng repo là `false`:
+
+| Thành phần | Repo | Approve |
+| --- | --- | --- |
+| SEEM Focal-L | `xdecoder/SEEM` | Không |
+| Depth Anything V2 Large | `depth-anything/Depth-Anything-V2-Large` | Không. License weight là CC-BY-NC-4.0, nhưng repo không khóa tải |
+| Depth metric (tùy chọn) | `depth-anything/Depth-Anything-V2-Metric-Hypersim-Large`, `...-VKITTI-Large` | Không |
+| big-lama | `smartywu/big-lama` | Không |
+| AnyDoor | space `xichenhku/AnyDoor` | Không |
+| Tokenizer CLIP của SEEM | `openai/clip-vit-base-patch32` | Không |
+
+Vẫn nên đặt token. File AnyDoor khoảng 17 GB, tải ẩn danh dễ bị giới hạn tốc độ. Token loại Read là đủ: [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
+
 ## Cài đặt
 
-Trên pod, clone repo rồi:
+Trên pod, clone repo rồi điền token trước khi tải weight:
 
 ```bash
 cd RelocateEdit
+cp .env.example .env
+# Sửa HF_TOKEN trong .env
 bash scripts/setup.sh
 ```
+
+`.env` không được commit. `HF_HUB_ENABLE_HF_TRANSFER=1` trong file mẫu bật `hf_transfer` (đã cài trong env) để tải song song, nhanh hơn tải tuần tự.
+
+Cache Hugging Face nằm ở `/workspace/data/huggingface`. Script tạo `/workspace/data` nếu chưa có. Checkpoint dùng lúc chạy nằm ở `weights/`, là symlink tới `/workspace/data/weights` trên RunPod, nên cả hai còn sau khi restart pod.
 
 `setup.sh` chạy lần lượt:
 
 1. `scripts/00_install_miniconda.sh` — cài Miniconda vào `/workspace/miniconda3` (còn sau khi restart pod). Nếu không có `/workspace` thì cài vào `$HOME/miniconda3`.
-2. `scripts/01_create_env.sh` — env conda tên `relocate`, Python 3.10, CUDA toolkit 11.8, PyTorch 2.1.2, xformers, detectron2 (build từ fork `MaureenZOU/detectron2-xyz`), rồi `requirements.txt`.
-3. `scripts/02_download_weights.sh` — tải weight vào `weights/`.
+2. `scripts/01_create_env.sh` — env conda tên `relocate`, Python 3.10, CUDA toolkit 11.8, PyTorch 2.1.2, xformers, detectron2 (build từ fork `MaureenZOU/detectron2-xyz`), rồi `requirements.txt` (gồm `hf_transfer`).
+3. `scripts/02_download_weights.sh` — đọc `.env`, tải weight vào `/workspace/data`.
 
 Tải thêm depth metric (trong nhà / ngoài trời) và weight DINOv2 rời:
 

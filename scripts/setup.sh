@@ -3,6 +3,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/env.sh"
 bash "${ROOT}/scripts/00_install_miniconda.sh"
 bash "${ROOT}/scripts/01_create_env.sh"
 bash "${ROOT}/scripts/02_download_weights.sh" "$@"

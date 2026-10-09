@@ -13,6 +13,8 @@ fi
 source "${PREFIX}/etc/profile.d/conda.sh"
 conda activate relocate
 cd "${ROOT}"
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/env.sh"
 
 # Pass --offload on a 24 GB GPU. Omit it on 40 GB or larger.
 exec python app.py --share --server-name 0.0.0.0 --server-port 7860 "$@"

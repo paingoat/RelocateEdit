@@ -14,6 +14,6 @@ source "${PREFIX}/etc/profile.d/conda.sh"
 conda activate relocate
 
 cd "${ROOT}"
-export HF_HOME="${ROOT}/weights/hf-cache"
-export HF_HUB_ENABLE_HF_TRANSFER=1
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/env.sh"
 python "${ROOT}/scripts/download_weights.py" "$@"

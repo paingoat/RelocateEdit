@@ -23,8 +23,8 @@ def main():
     parser.add_argument("--keep-raw", action="store_true", help="Keep the 17 GB AnyDoor file after stripping")
     args = parser.parse_args()
 
-    os.environ.setdefault("HF_HOME", str(WEIGHTS / "hf-cache"))
-    os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
+    _load_dotenv(ROOT / ".env")
+    _configure_cache()
     from huggingface_hub import hf_hub_download
 
     seem = WEIGHTS / "seem"
@@ -85,6 +85,54 @@ def main():
 
     _prefetch_tokenizer()
     print("Weights are in", WEIGHTS)
+
+
+def _load_dotenv(path: Path) -> None:
+    if not path.is_file():
+        return
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+def _configure_cache() -> None:
+    token = os.environ.get("HF_TOKEN", "")
+    if token in ("", "hf_your_token_here"):
+        os.environ.pop("HF_TOKEN", None)
+    hub_token = os.environ.get("HUGGING_FACE_HUB_TOKEN", "")
+    if hub_token in ("", "hf_your_token_here"):
+        os.environ.pop("HUGGING_FACE_HUB_TOKEN", None)
+
+    if Path("/workspace").is_dir():
+        data_root = Path(os.environ.get("RELOCATE_DATA_ROOT", "/workspace/data"))
+    else:
+        data_root = Path(os.environ.get("RELOCATE_DATA_ROOT", ROOT / ".cache"))
+    data_root.mkdir(parents=True, exist_ok=True)
+    data_weights = data_root / "weights"
+    data_weights.mkdir(parents=True, exist_ok=True)
+    if Path("/workspace").is_dir() and (WEIGHTS.is_symlink() or not WEIGHTS.exists()):
+        if WEIGHTS.is_symlink():
+            WEIGHTS.unlink()
+        WEIGHTS.symlink_to(data_weights, target_is_directory=True)
+    os.environ.setdefault("HF_HOME", str(data_root / "huggingface"))
+    os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(Path(os.environ["HF_HOME"]) / "hub"))
+    os.environ.setdefault("HF_HUB_CACHE", os.environ["HUGGINGFACE_HUB_CACHE"])
+    os.environ.setdefault("TRANSFORMERS_CACHE", str(Path(os.environ["HF_HOME"]) / "transformers"))
+    os.environ.setdefault("NLTK_DATA", str(data_root / "nltk_data"))
+    os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = os.environ.get("HF_HUB_ENABLE_HF_TRANSFER", "1") or "1"
+    for key in ("HF_HOME", "HUGGINGFACE_HUB_CACHE", "TRANSFORMERS_CACHE", "NLTK_DATA"):
+        Path(os.environ[key]).mkdir(parents=True, exist_ok=True)
+    WEIGHTS.mkdir(parents=True, exist_ok=True)
+    using_token = "HF_TOKEN" in os.environ or "HUGGING_FACE_HUB_TOKEN" in os.environ
+    print(f"HF cache: {os.environ['HF_HOME']}")
+    print(f"hf_transfer: {os.environ['HF_HUB_ENABLE_HF_TRANSFER']}")
+    print(f"HF token: {'set' if using_token else 'not set'}")
 
 
 def _find_lama(root: Path):
