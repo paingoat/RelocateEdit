@@ -25,6 +25,8 @@ safetensors==0.4.5
 pytorch-lightning==1.9.5
 kornia==0.7.0
 gradio==4.44.1
+# Gradio 4.44 crashes while building the page schema if Pydantic is 2.10 or newer.
+pydantic==2.9.2
 fvcore==0.1.5.post20221221
 iopath==0.1.9
 yacs==0.1.8

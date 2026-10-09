@@ -14,6 +14,24 @@ from relocate_edit.ui.gradio_app import build_demo
 from relocate_edit.pipeline import RelocatePipeline
 
 
+def _patch_gradio_schema():
+    """Gradio 4.44 walks API schemas and assumes every node is a dict.
+
+    Pydantic 2.10 writes ``additionalProperties: true``. Gradio then evaluates
+    ``"const" in True`` and the page fails to render.
+    """
+    import gradio_client.utils as client_utils
+
+    original = client_utils.get_type
+
+    def get_type(schema):
+        if not isinstance(schema, dict):
+            return "Any"
+        return original(schema)
+
+    client_utils.get_type = get_type
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="RelocateEdit object relocation UI")
     parser.add_argument("--config", default=str(ROOT / "configs" / "default.yaml"))
@@ -26,6 +44,7 @@ def parse_args():
 
 
 def main():
+    _patch_gradio_schema()
     args = parse_args()
     config = load_config(args.config)
     if args.offload:
