@@ -1,0 +1,56 @@
+# Paths are relative to the RelocateEdit repository root.
+
+device: cuda:0
+offload: false
+outputs_dir: outputs
+
+seem:
+  config: configs/seem_focall_demo.yaml
+  checkpoint: weights/seem/seem_focall_v0.pt
+  # loop: a closed scribble around the object. stroke: paint on the object.
+  prompt_mode: loop
+  dilation: 3
+  extra_points: 4
+  w_sim: 0.5
+  w_in: 0.3
+  w_iou: 0.2
+
+depth:
+  encoder: vitl
+  mode: relative   # relative | metric_indoor | metric_outdoor
+  input_size: 518
+  checkpoints:
+    relative: weights/depth/depth_anything_v2_vitl.pth
+    metric_indoor: weights/depth/depth_anything_v2_metric_hypersim_vitl.pth
+    metric_outdoor: weights/depth/depth_anything_v2_metric_vkitti_vitl.pth
+  max_depth:
+    metric_indoor: 20
+    metric_outdoor: 80
+
+relocate:
+  scale_factor: 1.0
+  s_min: 0.2
+  s_max: 5.0
+  iterations: 3
+  boundary: shift   # shift | shrink | clip
+
+lama:
+  checkpoint_dir: weights/lama/big-lama
+  dilation: 15
+  refine: true
+  n_iters: 15
+  lr: 0.002
+  min_side: 512
+  max_scales: 3
+  px_budget: 1800000
+
+anydoor:
+  config: configs/anydoor.yaml
+  checkpoint: weights/anydoor/anydoor.ckpt
+  dino_weight: null
+  steps: 30
+  guidance: 4.5
+  strength: 1.0
+  seed: 42
+  shape_control: true
+  save_memory: false

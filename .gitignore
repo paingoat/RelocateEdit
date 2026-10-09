@@ -1,0 +1,7 @@
+weights/
+outputs/
+__pycache__/
+*.pyc
+.gradio/
+*.egg-info/
+.pytest_cache/
