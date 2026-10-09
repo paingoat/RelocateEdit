@@ -102,7 +102,7 @@ class AnyDoorConfig:
 class AppConfig:
     device: str = "cuda:0"
     offload: bool = False
-    outputs_dir: str = "outputs"
+    outputs_dir: str = "output"
     seem: SeemConfig = field(default_factory=SeemConfig)
     depth: DepthConfig = field(default_factory=DepthConfig)
     relocate: RelocateConfig = field(default_factory=RelocateConfig)

@@ -6,7 +6,7 @@ from relocate_edit.ops.mask_ops import mask_bbox
 from relocate_edit.ops.relocation import relocate
 from relocate_edit.registry import ModelRegistry
 from relocate_edit.types import DepthResult, InpaintResult, InsertResult, RelocateResult, SegmentResult
-from relocate_edit.utils.io import new_run_dir, save_stage
+from relocate_edit.utils.io import new_run_dir, save_step
 from relocate_edit.utils.visualization import mask_preview, object_cutout, overlay_mask, side_by_side
 
 
@@ -18,6 +18,24 @@ class RelocatePipeline:
     def preload(self):
         self.registry.preload()
 
+    def save_scribble(self, session, view):
+        session.run_dir = new_run_dir(self.config.outputs_dir)
+        save_step(session.run_dir, "A", {
+            "image": session.image,
+            "scribble": session.scribble,
+            "overlay": view,
+        }, {
+            "width": int(session.image.shape[1]),
+            "height": int(session.image.shape[0]),
+            "scribble_px": int(session.scribble.sum()),
+        })
+        return session.run_dir
+
+    def save_target(self, session, view):
+        save_step(self._run_dir(session), "B", {"target": view}, {
+            "target_xy": [int(session.target_xy[0]), int(session.target_xy[1])],
+        })
+
     def run_segment(self, session, prompt_mode=None):
         self._require_image(session)
         if session.scribble is None or not session.scribble.any():
@@ -28,7 +46,7 @@ class RelocatePipeline:
         session.relocate = None
         session.inpaint = None
         session.insert = None
-        save_stage(self._run_dir(session), "01_segment", {
+        save_step(self._run_dir(session), "1", {
             "overlay": overlay,
             "candidates": candidates,
             "mask": mask,
@@ -42,7 +60,7 @@ class RelocatePipeline:
         session.depth = DepthResult(depth, colormap, metric, info)
         session.relocate = None
         session.insert = None
-        save_stage(self._run_dir(session), "02_depth", {"colormap": colormap}, info)
+        save_step(self._run_dir(session), "2", {"colormap": colormap}, info, arrays={"depth": depth})
         return session
 
     def run_relocate(self, session, scale_factor=None, boundary=None):
@@ -82,7 +100,7 @@ class RelocatePipeline:
             moved["mask"], moved["reference_mask"], overlay, moved["preview"], moved["scale"], info,
         )
         session.insert = None
-        save_stage(self._run_dir(session), "03_relocate", {
+        save_step(self._run_dir(session), "3", {
             "overlay": overlay,
             "preview": moved["preview"],
             "mask": moved["mask"],
@@ -98,7 +116,7 @@ class RelocatePipeline:
         preview = mask_preview(session.image, hole)
         session.inpaint = InpaintResult(clean, hole, preview, info)
         session.insert = None
-        save_stage(self._run_dir(session), "04_inpaint", {
+        save_step(self._run_dir(session), "4", {
             "clean": clean,
             "dilated_mask": preview,
         }, info)
@@ -134,7 +152,7 @@ class RelocatePipeline:
             "scale": session.relocate.scale,
         }
         session.insert = InsertResult(result, cutout, comparison, info)
-        save_stage(self._run_dir(session), "05_insert", {
+        save_step(self._run_dir(session), "5", {
             "result": result,
             "cutout": cutout,
             "comparison": comparison,

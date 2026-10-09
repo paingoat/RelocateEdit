@@ -160,7 +160,7 @@ bash scripts/run_app.sh --offload --preload
 
 Cổng mặc định `7860`, lắng nghe `0.0.0.0`. Đổi cổng: `bash scripts/run_app.sh --server-port 7861`.
 
-Mỗi lần chạy một bước, ảnh và file json được ghi vào `outputs/<thời gian>/`.
+Mỗi bước ghi ảnh và `info.json` vào `output/<YYYY-MM-DD_HH-mm-ss>/`, trong các thư mục `A`, `B`, `1`, `2`, `3`, `4`, `5`.
 
 Test không cần weight, không cần GPU (cần numpy và scipy):
 

@@ -10,7 +10,7 @@ from relocate_edit.types import Session
 from relocate_edit.utils.visualization import draw_arrow, overlay_mask
 
 
-def confirm_scribble(editor_value, session: Session):
+def confirm_scribble(editor_value, session: Session, pipeline):
     image, scribble = extract_scribble(editor_value)
     session.image = image
     session.scribble = scribble
@@ -23,11 +23,15 @@ def confirm_scribble(editor_value, session: Session):
     session.insert = None
     view = _base_view(session)
     session.extras["base_view"] = view
-    status = f"Đã nhận ảnh {image.shape[1]}x{image.shape[0]}, nét khoanh {int(scribble.sum())} pixel. Bấm vào ảnh để chọn điểm đích."
+    run_dir = pipeline.save_scribble(session, view)
+    status = (
+        f"Đã nhận ảnh {image.shape[1]}x{image.shape[0]}, nét khoanh {int(scribble.sum())} pixel. "
+        f"Bấm vào ảnh để chọn điểm đích. Đã lưu vào output/{_run_name(run_dir)}."
+    )
     return session, view, status
 
 
-def select_target_at(session: Session, x, y):
+def select_target_at(session: Session, x, y, pipeline):
     # Coordinates come from a page script, not gr.Image.select. Gradio 4.44
     # leaves an invisible upload button over the picture, so that event never fires.
     if session is None or session.image is None:
@@ -45,6 +49,7 @@ def select_target_at(session: Session, x, y):
     session.insert = None
     origin = _origin(session)
     view = draw_arrow(session.extras.get("base_view", _base_view(session)), origin, (x, y))
+    pipeline.save_target(session, view)
     status = f"Điểm đích: ({x}, {y}). Mũi tên đi từ tâm vật tới điểm này."
     return session, view, status
 
@@ -88,38 +93,61 @@ def run_insert(session, steps, guidance, strength, seed, shape_control, pipeline
 
 def run_all(session, prompt_mode, depth_mode, scale_factor, boundary, dilation, refine,
             steps, guidance, strength, seed, shape_control, pipeline):
-    session = pipeline.run_all(
+    """Yield after each stage so the panels update before the next model runs."""
+    session.depth = None
+    session.relocate = None
+    session.inpaint = None
+    session.insert = None
+    yield _panels(session, "Đang chạy bước 1 — SEEM...")
+    pipeline.run_segment(session, prompt_mode=prompt_mode)
+    yield _panels(session, "Đã xong bước 1. Đang chạy bước 2 — depth...")
+    pipeline.run_depth(session, mode=depth_mode)
+    yield _panels(session, "Đã xong bước 2. Đang chạy bước 3 — dời mask...")
+    pipeline.run_relocate(session, scale_factor=scale_factor, boundary=boundary)
+    yield _panels(session, "Đã xong bước 3. Đang chạy bước 4 — xóa vật nguồn...")
+    pipeline.run_inpaint(session, dilation=int(dilation), refine=bool(refine))
+    yield _panels(session, "Đã xong bước 4. Đang chạy bước 5 — chèn vật...")
+    pipeline.run_insert(
         session,
-        prompt_mode=prompt_mode,
-        depth_mode=depth_mode,
-        scale_factor=scale_factor,
-        boundary=boundary,
-        dilation=int(dilation),
-        refine=bool(refine),
         steps=int(steps),
         guidance=float(guidance),
         strength=float(strength),
         seed=int(seed),
         shape_control=bool(shape_control),
     )
+    yield _panels(session, f"Xong toàn bộ. Đã lưu trong output/{_run_name(session.run_dir)}.")
+
+
+def _panels(session: Session, status: str):
+    segment = session.segment
+    depth = session.depth
+    relocate = session.relocate
+    inpaint = session.inpaint
+    insert = session.insert
     return (
         session,
-        session.segment.overlay,
-        session.segment.candidates,
-        session.segment.info,
-        session.depth.colormap,
-        session.depth.info,
-        session.relocate.overlay,
-        session.relocate.preview,
-        session.relocate.info,
-        session.inpaint.mask_preview,
-        session.inpaint.image,
-        session.inpaint.info,
-        session.insert.cutout,
-        session.insert.image,
-        session.insert.comparison,
-        session.insert.info,
+        None if segment is None else segment.overlay,
+        None if segment is None else segment.candidates,
+        None if segment is None else segment.info,
+        None if depth is None else depth.colormap,
+        None if depth is None else depth.info,
+        None if relocate is None else relocate.overlay,
+        None if relocate is None else relocate.preview,
+        None if relocate is None else relocate.info,
+        None if inpaint is None else inpaint.mask_preview,
+        None if inpaint is None else inpaint.image,
+        None if inpaint is None else inpaint.info,
+        None if insert is None else insert.cutout,
+        None if insert is None else insert.image,
+        None if insert is None else insert.comparison,
+        None if insert is None else insert.info,
+        status,
     )
+
+
+def _run_name(run_dir) -> str:
+    from pathlib import Path
+    return Path(run_dir).name if run_dir else ""
 
 
 def extract_scribble(editor_value):

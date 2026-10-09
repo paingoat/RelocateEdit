@@ -2,7 +2,7 @@
 
 device: cuda:0
 offload: false
-outputs_dir: outputs
+outputs_dir: output
 
 seem:
   config: configs/seem_focall_demo.yaml

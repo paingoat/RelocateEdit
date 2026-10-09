@@ -1,6 +1,7 @@
 weights/
 .env
 outputs/
+output/
 __pycache__/
 *.pyc
 .gradio/

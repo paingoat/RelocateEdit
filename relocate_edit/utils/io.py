@@ -1,4 +1,4 @@
-"""Write one stage of a run to `outputs/<run_id>/`."""
+"""Write each step of a run to `output/<YYYY-MM-DD_HH-mm-ss>/<step>/`."""
 
 from __future__ import annotations
 
@@ -11,19 +11,27 @@ from PIL import Image
 
 
 def new_run_dir(outputs_dir: str) -> str:
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     path = Path(outputs_dir) / stamp
     path.mkdir(parents=True, exist_ok=True)
     return str(path)
 
 
-def save_stage(run_dir: str, stage: str, images: dict, info: dict) -> None:
-    folder = Path(run_dir)
+def save_step(run_dir: str, step: str, images: dict, info: dict | None = None, arrays: dict | None = None) -> None:
+    """Save one step into its own folder: A, B, or 1..5."""
+    folder = Path(run_dir) / step
     folder.mkdir(parents=True, exist_ok=True)
     for name, array in images.items():
-        _write_png(folder / f"{stage}_{name}.png", array)
-    with open(folder / f"{stage}.json", "w", encoding="utf-8") as handle:
-        json.dump(_jsonable(info), handle, indent=2, ensure_ascii=False)
+        if array is None:
+            continue
+        _write_png(folder / f"{name}.png", array)
+    for name, array in (arrays or {}).items():
+        if array is None:
+            continue
+        np.save(folder / f"{name}.npy", np.asarray(array))
+    if info is not None:
+        with open(folder / "info.json", "w", encoding="utf-8") as handle:
+            json.dump(_jsonable(info), handle, indent=2, ensure_ascii=False)
 
 
 def _write_png(path: Path, array: np.ndarray) -> None:

@@ -118,6 +118,14 @@ def build_demo(pipeline):
                 raise gr.Error(str(exc)) from exc
         return wrapped
 
+    def _bind_stream(fn):
+        def wrapped(*args):
+            try:
+                yield from fn(*args, pipeline)
+            except Exception as exc:
+                raise gr.Error(str(exc)) from exc
+        return wrapped
+
     with gr.Blocks(title="RelocateEdit", css=_TARGET_CSS, head=_TARGET_HEAD) as demo:
         session = gr.State(Session())
         gr.Markdown(
@@ -128,7 +136,7 @@ Di chuyển một vật trong ảnh. Làm lần lượt từ trên xuống dư�
 
 1. Tải ảnh và **khoanh một vòng kín** quanh vật nguồn, rồi bấm xác nhận.
 2. **Bấm vào ảnh** ở điểm muốn đặt vật. Mũi tên được vẽ từ tâm vòng khoanh tới điểm đó.
-3. Chạy từng giai đoạn để xem mask, depth, mask đích, nền đã xóa, và ảnh cuối. Hoặc bấm chạy toàn bộ.
+3. Chạy từng giai đoạn, hoặc bấm chạy toàn bộ. Ảnh của mỗi bước hiện ngay khi bước đó xong, và được lưu vào `output/<thời gian>/`.
             """.strip()
         )
 
@@ -162,9 +170,9 @@ Di chuyển một vật trong ảnh. Làm lần lượt từ trên xuống dư�
         click_x = gr.Number(value=0, visible=False)
         click_y = gr.Number(value=0, visible=False)
         pick_target = gr.Button(elem_id="target-pick", visible=False)
-        confirm.click(cb.confirm_scribble, [editor, session], [session, target_view, status])
+        confirm.click(_bind(cb.confirm_scribble), [editor, session], [session, target_view, status])
         pick_target.click(
-            cb.select_target_at,
+            _bind(cb.select_target_at),
             [session, click_x, click_y],
             [session, target_view, status],
             js=_PICK_JS,
@@ -246,13 +254,15 @@ Di chuyển một vật trong ảnh. Làm lần lượt từ trên xuống dư�
             [session, insert_cutout, insert_result, insert_compare, insert_info],
         )
         run_all_button.click(
-            _bind(cb.run_all),
+            _bind_stream(cb.run_all),
             [session, prompt_mode, depth_mode, scale_factor, boundary, dilation, refine,
              steps, guidance, strength, seed, shape_control],
             [session, segment_overlay, segment_candidates, segment_info,
              depth_image, depth_info,
              relocate_overlay, relocate_preview, relocate_info,
              inpaint_mask, inpaint_clean, inpaint_info,
-             insert_cutout, insert_result, insert_compare, insert_info],
+             insert_cutout, insert_result, insert_compare, insert_info,
+             status],
+            show_progress="minimal",
         )
     return demo
