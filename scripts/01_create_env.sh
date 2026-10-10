@@ -13,12 +13,19 @@ else
   PREFIX="${MINICONDA_PREFIX:-${HOME}/miniconda3}"
 fi
 
+# nvcc comes from the image's NVIDIA apt repo, not from conda. The conda
+# meta-package cuda-toolkit 12.8.0 makes libmamba raise InvalidSpec on linux-64
+# ("not available for the specified platform") once any CUDA label is installed.
+APT_PACKAGES=(
+  build-essential gcc-11 g++-11 git wget unzip ninja-build
+  cuda-nvcc-12-8 cuda-cudart-dev-12-8 cuda-cccl-12-8
+)
 if [[ "$(id -u)" -eq 0 ]]; then
   apt-get update
-  apt-get install -y build-essential gcc-11 g++-11 git wget unzip ninja-build
+  apt-get install -y "${APT_PACKAGES[@]}"
 else
   sudo apt-get update
-  sudo apt-get install -y build-essential gcc-11 g++-11 git wget unzip ninja-build
+  sudo apt-get install -y "${APT_PACKAGES[@]}"
 fi
 
 # shellcheck disable=SC1091
@@ -42,8 +49,27 @@ else
 fi
 run_conda activate relocate
 
-# nvcc 12.8 compiles detectron2 for sm_120. The PyTorch wheel ships its own runtime.
-run_conda install -y -c "nvidia/label/cuda-12.8.0" cuda-toolkit
+# The CUDA 11.8 conda packages already in this env export nvcc, library paths,
+# and a gcc deactivate hook. That hook reads an unset variable and aborts
+# `conda activate` under set -u. Disable the hooks; this shell already sourced
+# them, so also drop the variables they exported.
+shopt -s nullglob
+for hook_dir in "${CONDA_PREFIX}/etc/conda/activate.d" "${CONDA_PREFIX}/etc/conda/deactivate.d"; do
+  for hook in "${hook_dir}"/*cuda* "${hook_dir}"/*gcc_linux-64*; do
+    if [[ -f "${hook}" && "${hook}" != *.disabled ]]; then
+      mv "${hook}" "${hook}.disabled"
+    fi
+  done
+done
+shopt -u nullglob
+unset CUDA_HOME
+if [[ -n "${LD_LIBRARY_PATH:-}" ]]; then
+  LD_LIBRARY_PATH="$(printf ':%s:' "${LD_LIBRARY_PATH}" | sed \
+    -e "s#:${CONDA_PREFIX}/lib:#:#g" \
+    -e "s#:${CONDA_PREFIX}/lib64:#:#g" \
+    -e 's#^:##' -e 's#:$##')"
+  export LD_LIBRARY_PATH
+fi
 
 python -m pip install --upgrade pip
 python -m pip install --upgrade \
@@ -54,12 +80,19 @@ python -m pip install -r "${ROOT}/requirements.txt"
 # detectron2 imports PIL.Image.LINEAR, which Pillow 10 removed. Keep 9.5.
 python -m pip install --force-reinstall --no-deps pillow==9.5.0 numpy==1.23.5
 
-export CUDA_HOME="${CONDA_PREFIX}"
+if [[ -x /usr/local/cuda-12.8/bin/nvcc ]]; then
+  export CUDA_HOME=/usr/local/cuda-12.8
+elif [[ -x /usr/local/cuda/bin/nvcc ]]; then
+  export CUDA_HOME=/usr/local/cuda
+else
+  echo "nvcc 12.8 was not installed. Expected /usr/local/cuda-12.8/bin/nvcc." >&2
+  exit 1
+fi
 export PATH="${CUDA_HOME}/bin:${PATH}"
 hash -r
 
 if ! command -v nvcc >/dev/null 2>&1; then
-  echo "nvcc is not on PATH after installing the CUDA 12.8 toolkit." >&2
+  echo "nvcc is not on PATH. CUDA_HOME=${CUDA_HOME}" >&2
   exit 1
 fi
 NVCC_RELEASE="$(nvcc --version | sed -n 's/.*release \([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1)"

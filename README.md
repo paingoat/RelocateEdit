@@ -77,7 +77,7 @@ Bước 3 còn vẽ một ảnh "dán thử": cắt pixel gốc rồi đặt san
 
 ## Máy cần gì
 
-Chạy trên Linux có GPU NVIDIA. Script cài CUDA toolkit 12.8 trong conda và wheel PyTorch `cu128`. GPU Blackwell (RTX PRO 4500, dòng RTX 50, kiến trúc `sm_120`) không có kernel trong wheel CUDA 11.8.
+Chạy trên Linux có GPU NVIDIA. Script cài `nvcc` 12.8 bằng apt (repo CUDA có sẵn trên image RunPod) và wheel PyTorch `cu128`. GPU Blackwell (RTX PRO 4500, dòng RTX 50, kiến trúc `sm_120`) không có kernel trong wheel CUDA 11.8. Không cài `cuda-toolkit` bằng conda: solver báo `InvalidSpec` với meta-package đó trên `linux-64`.
 
 | Hạng mục | Mức |
 | --- | --- |
@@ -121,7 +121,7 @@ Cache Hugging Face nằm ở `/workspace/data/huggingface`. Script tạo `/works
 `setup.sh` chạy lần lượt:
 
 1. `scripts/00_install_miniconda.sh` — cài Miniconda vào `/workspace/miniconda3` (còn sau khi restart pod). Nếu không có `/workspace` thì cài vào `$HOME/miniconda3`.
-2. `scripts/01_create_env.sh` — env conda tên `relocate`, Python 3.10, CUDA toolkit 12.8, PyTorch 2.7.1+cu128, xformers 0.0.31, detectron2 (build từ fork `MaureenZOU/detectron2-xyz`, có `sm_120`), rồi `requirements.txt` (gồm `hf_transfer`).
+2. `scripts/01_create_env.sh` — env conda tên `relocate`, Python 3.10, `nvcc` 12.8 từ apt, PyTorch 2.7.1+cu128, xformers 0.0.31, detectron2 (build từ fork `MaureenZOU/detectron2-xyz`, có `sm_120`), rồi `requirements.txt` (gồm `hf_transfer`).
 3. `scripts/02_download_weights.sh` — đọc `.env`, tải weight vào `/workspace/data`.
 
 Tải thêm depth metric (trong nhà / ngoài trời) và weight DINOv2 rời:

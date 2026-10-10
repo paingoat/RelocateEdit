@@ -11,7 +11,9 @@ fi
 
 # shellcheck disable=SC1091
 source "${PREFIX}/etc/profile.d/conda.sh"
+set +u
 conda activate relocate
+set -u
 
 cd "${ROOT}"
 # shellcheck disable=SC1091

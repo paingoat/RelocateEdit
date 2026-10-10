@@ -11,7 +11,10 @@ fi
 
 # shellcheck disable=SC1091
 source "${PREFIX}/etc/profile.d/conda.sh"
+# The old conda CUDA hooks reference unset variables. set -u would abort here.
+set +u
 conda activate relocate
+set -u
 cd "${ROOT}"
 # shellcheck disable=SC1091
 source "${ROOT}/scripts/env.sh"
