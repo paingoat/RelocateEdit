@@ -138,7 +138,7 @@ Nếu app báo `no kernel image is available for execution on the device`, env v
 
 Env dùng một bộ thư viện cho cả bốn model. Code training và các pin xung đột nhau (Lightning 1.2 với 1.5, Gradio 3 với 4, transformers 4.19) không được cài. Transformers ở đây là 4.36.2 để vừa gọi được CLIP tokenizer của SEEM vừa thỏa Gradio. Chi tiết phần code giữ lại và chỗ đã sửa nằm ở [third_party/README.md](third_party/README.md).
 
-Pillow bị khóa ở 9.5 vì detectron2 còn gọi `Image.LINEAR`, hàm đã bị xóa ở Pillow 10. Sau khi build detectron2, script cài lại `setuptools==69.5.1`: bản 82 trở lên bỏ `pkg_resources`, còn checkpoint LaMa unpickle `pytorch_lightning` thì import đó gọi `pkg_resources`. Script cài GCC 11 và dùng nó khi build detectron2, để Ubuntu 22.04 và 24.04 cùng một compiler. CUDA 12.8 chấp nhận GCC 11.
+Pillow bị khóa ở 9.5 vì detectron2 còn gọi `Image.LINEAR`, hàm đã bị xóa ở Pillow 10. Sau khi build detectron2, script cài lại `setuptools==69.5.1`: bản 82 trở lên bỏ `pkg_resources`. App cũng tự tạo `pkg_resources.declare_namespace` nếu module đó vắng, vì checkpoint LaMa và AnyDoor đều import Lightning. Script cài GCC 11 và dùng nó khi build detectron2, để Ubuntu 22.04 và 24.04 cùng một compiler. CUDA 12.8 chấp nhận GCC 11.
 
 ## Chạy Gradio, có link public
 

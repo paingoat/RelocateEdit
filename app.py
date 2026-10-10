@@ -10,6 +10,7 @@ import argparse
 from pathlib import Path
 
 from relocate_edit.config import ROOT, load_config
+from relocate_edit.utils.devices import ensure_pkg_resources
 from relocate_edit.ui.gradio_app import build_demo
 from relocate_edit.pipeline import RelocatePipeline
 
@@ -52,6 +53,7 @@ def parse_args():
 
 
 def main():
+    ensure_pkg_resources()
     _patch_gradio_schema()
     args = parse_args()
     config = load_config(args.config)

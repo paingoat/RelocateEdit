@@ -22,6 +22,7 @@ from relocate_edit.ops.anydoor_data_utils import (
     pad_to_square,
     sobel,
 )
+from relocate_edit.utils.devices import ensure_pkg_resources
 from relocate_edit.utils.third_party import ensure_on_path, vendor_path
 
 _DOWNLOAD = "Run scripts/02_download_weights.sh. Stripping the AnyDoor checkpoint needs about 32 GB of RAM."
@@ -37,6 +38,7 @@ class AnyDoorInserter(BaseModelWrapper):
 
     def load(self):
         self.require_cuda()
+        ensure_pkg_resources()
         self.require_file(self.config.checkpoint, _DOWNLOAD)
         self.require_file(self.config.config, "configs/anydoor.yaml is missing.")
         ensure_on_path(vendor_path("anydoor"))

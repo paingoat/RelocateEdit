@@ -1,6 +1,8 @@
+import sys
+import types
 import unittest
 
-from relocate_edit.utils.devices import unsupported_cuda_arch_message
+from relocate_edit.utils.devices import ensure_pkg_resources, unsupported_cuda_arch_message
 from relocate_edit.utils.xformers_compat import architecture_listed, xformers_supports_device
 
 import torch
@@ -41,6 +43,27 @@ class XformersArchTest(unittest.TestCase):
 
     def test_cpu_does_not_need_an_xformers_kernel(self):
         self.assertTrue(xformers_supports_device(torch.device("cpu")))
+
+
+class PkgResourcesShimTest(unittest.TestCase):
+    def test_missing_module_gets_declare_namespace(self):
+        saved = sys.modules.get("pkg_resources")
+        sys.modules["pkg_resources"] = None
+        package = types.ModuleType("example_ns_pkg")
+        package.__path__ = ["/tmp/example_ns_pkg"]
+        sys.modules["example_ns_pkg"] = package
+        try:
+            ensure_pkg_resources()
+            import pkg_resources
+
+            pkg_resources.declare_namespace("example_ns_pkg")
+            self.assertIn("/tmp/example_ns_pkg", list(package.__path__))
+        finally:
+            if saved is None:
+                sys.modules.pop("pkg_resources", None)
+            else:
+                sys.modules["pkg_resources"] = saved
+            sys.modules.pop("example_ns_pkg", None)
 
 
 if __name__ == "__main__":

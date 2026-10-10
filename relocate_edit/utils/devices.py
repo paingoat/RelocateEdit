@@ -23,7 +23,41 @@ def unsupported_cuda_arch_message(device_name, capability, archs, torch_version,
     )
 
 
+def ensure_pkg_resources() -> None:
+    """Provide ``pkg_resources.declare_namespace`` when setuptools no longer does.
+
+    Setuptools 82 removed ``pkg_resources``. ``lightning_fabric`` still calls
+    ``declare_namespace`` as soon as it is imported. LaMa's checkpoint and
+    AnyDoor both import Lightning, so that missing module stops step 4 and step 5.
+    """
+    try:
+        import pkg_resources
+    except ModuleNotFoundError:
+        pkg_resources = None
+    if pkg_resources is not None and hasattr(pkg_resources, "declare_namespace"):
+        return
+
+    import pkgutil
+    import sys
+    import types
+
+    module = types.ModuleType("pkg_resources")
+
+    def declare_namespace(package_name: str) -> None:
+        imported = sys.modules.get(package_name)
+        if imported is None:
+            return
+        path = getattr(imported, "__path__", None)
+        if path is None:
+            return
+        imported.__path__ = pkgutil.extend_path(list(path), package_name)
+
+    module.declare_namespace = declare_namespace
+    sys.modules["pkg_resources"] = module
+
+
 def torch_load(path, map_location="cpu"):
+    ensure_pkg_resources()
     try:
         return torch.load(path, map_location=map_location, weights_only=False)
     except TypeError:
