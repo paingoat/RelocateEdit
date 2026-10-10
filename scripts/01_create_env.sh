@@ -24,15 +24,26 @@ fi
 # shellcheck disable=SC1091
 source "${PREFIX}/etc/profile.d/conda.sh"
 
+# conda's gcc deactivate hook reads _CONDA_PYTHON_SYSCONFIGDATA_NAME_USED
+# even when it was never set. set -u above turns that into a fatal error
+# after a successful `conda install`.
+run_conda() {
+  set +u
+  conda "$@"
+  local status=$?
+  set -u
+  return "${status}"
+}
+
 if conda env list | awk '{print $1}' | grep -qx relocate; then
   echo "Conda env 'relocate' already exists. Updating packages."
 else
-  conda create -y -n relocate python=3.10
+  run_conda create -y -n relocate python=3.10
 fi
-conda activate relocate
+run_conda activate relocate
 
 # nvcc 12.8 compiles detectron2 for sm_120. The PyTorch wheel ships its own runtime.
-conda install -y -c "nvidia/label/cuda-12.8.0" cuda-toolkit
+run_conda install -y -c "nvidia/label/cuda-12.8.0" cuda-toolkit
 
 python -m pip install --upgrade pip
 python -m pip install --upgrade \
