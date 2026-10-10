@@ -28,6 +28,8 @@ class DepthEstimator(BaseModelWrapper):
         self.loaded_mode = None
 
     def load(self, mode: str | None = None):
+        if self.device.type == "cuda":
+            self.require_cuda()
         mode = mode or self.config.mode
         if mode not in self.config.checkpoints:
             raise ValueError(f"Unknown depth mode '{mode}'.")

@@ -13,6 +13,8 @@ import logging
 from torch import Tensor
 from torch import nn
 
+from relocate_edit.utils.xformers_compat import xformers_supports_device
+
 
 logger = logging.getLogger("dinov2")
 
@@ -64,8 +66,9 @@ class Attention(nn.Module):
 
 class MemEffAttention(Attention):
     def forward(self, x: Tensor, attn_bias=None) -> Tensor:
-        if not XFORMERS_AVAILABLE:
-            assert attn_bias is None, "xFormers is required for nested tensors usage"
+        if not XFORMERS_AVAILABLE or not xformers_supports_device(x.device):
+            if attn_bias is not None:
+                raise RuntimeError("xFormers is required for nested tensors usage")
             return super().forward(x)
 
         B, N, C = x.shape

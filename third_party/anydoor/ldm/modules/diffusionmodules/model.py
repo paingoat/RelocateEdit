@@ -7,6 +7,7 @@ from einops import rearrange
 from typing import Optional, Any
 
 from ldm.modules.attention import MemoryEfficientCrossAttention
+from relocate_edit.utils.xformers_compat import xformers_supports_device
 
 try:
     import xformers
@@ -255,7 +256,10 @@ class MemoryEfficientAttnBlock(nn.Module):
             .contiguous(),
             (q, k, v),
         )
-        out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None, op=self.attention_op)
+        if XFORMERS_IS_AVAILBLE and xformers_supports_device(q.device):
+            out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None, op=self.attention_op)
+        else:
+            out = torch.nn.functional.scaled_dot_product_attention(q, k, v)
 
         out = (
             out.unsqueeze(0)

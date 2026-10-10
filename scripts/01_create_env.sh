@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Create the single `relocate` env: CUDA 11.8 toolkit, PyTorch, detectron2, requirements.
+# Create the single `relocate` env: CUDA 12.8 toolkit, PyTorch, detectron2, requirements.
+#
+# Blackwell GPUs (RTX PRO 4500, RTX 50-series, sm_120) have no kernels in the
+# CUDA 11.8 wheels. The first CUDA allocation then fails with
+# "no kernel image is available for execution on the device".
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,21 +31,42 @@ else
 fi
 conda activate relocate
 
-conda install -y -c "nvidia/label/cuda-11.8.0" cuda-toolkit
+# nvcc 12.8 compiles detectron2 for sm_120. The PyTorch wheel ships its own runtime.
+conda install -y -c "nvidia/label/cuda-12.8.0" cuda-toolkit
 
 python -m pip install --upgrade pip
-python -m pip install torch==2.1.2 torchvision==0.16.2 --index-url https://download.pytorch.org/whl/cu118
-python -m pip install xformers==0.0.23.post1 --index-url https://download.pytorch.org/whl/cu118
+python -m pip install --upgrade \
+  torch==2.7.1 torchvision==0.22.1 xformers==0.0.31 \
+  --index-url https://download.pytorch.org/whl/cu128
 python -m pip install -r "${ROOT}/requirements.txt"
 
 # detectron2 imports PIL.Image.LINEAR, which Pillow 10 removed. Keep 9.5.
 python -m pip install --force-reinstall --no-deps pillow==9.5.0 numpy==1.23.5
 
 export CUDA_HOME="${CONDA_PREFIX}"
-export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.0;8.6;8.9;9.0}"
-# CUDA 11.8 nvcc rejects GCC newer than 11. Ubuntu 24.04's default is GCC 13.
+export PATH="${CUDA_HOME}/bin:${PATH}"
+hash -r
+
+if ! command -v nvcc >/dev/null 2>&1; then
+  echo "nvcc is not on PATH after installing the CUDA 12.8 toolkit." >&2
+  exit 1
+fi
+NVCC_RELEASE="$(nvcc --version | sed -n 's/.*release \([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1)"
+echo "nvcc ${NVCC_RELEASE}"
+python - "${NVCC_RELEASE}" <<'PY'
+import sys
+major, minor = (int(part) for part in sys.argv[1].split(".")[:2])
+if (major, minor) < (12, 8):
+    raise SystemExit(
+        f"nvcc {sys.argv[1]} cannot compile sm_120. Install CUDA 12.8 or newer."
+    )
+PY
+
+# 8.x/9.0 keep Ampere, Ada, and Hopper. 12.0 is Blackwell (sm_120).
+export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.0;8.6;8.9;9.0;12.0}"
+# CUDA 12.8 accepts GCC 13. Pin GCC 11 so Ubuntu 22.04 and 24.04 use one compiler.
 if [[ ! -x /usr/bin/gcc-11 || ! -x /usr/bin/g++-11 ]]; then
-  echo "gcc-11 and g++-11 are required to build detectron2 against CUDA 11.8." >&2
+  echo "gcc-11 and g++-11 are required to build detectron2." >&2
   exit 1
 fi
 HOST_BIN="$(mktemp -d)"
@@ -53,12 +78,40 @@ export PATH="${HOST_BIN}:${PATH}"
 export CC="${HOST_BIN}/gcc"
 export CXX="${HOST_BIN}/g++"
 export CUDAHOSTCXX="${HOST_BIN}/g++"
-python -m pip install --no-build-isolation "git+https://github.com/MaureenZOU/detectron2-xyz.git"
+
+# Pip would reuse the old extension: the git revision did not change, but the
+# binary was compiled for CUDA 11.8 and does not contain sm_120.
+python -m pip uninstall -y detectron2 || true
+python -m pip install --no-build-isolation --no-cache-dir --force-reinstall \
+  "git+https://github.com/MaureenZOU/detectron2-xyz.git"
 rm -rf "${HOST_BIN}"
+
+python -m pip install --force-reinstall --no-deps pillow==9.5.0 numpy==1.23.5
 
 python - <<'PY'
 import torch
 import PIL
-print("torch", torch.__version__, "cuda", torch.version.cuda, "pillow", PIL.__version__)
+import detectron2
+print(
+    "torch", torch.__version__,
+    "cuda", torch.version.cuda,
+    "pillow", PIL.__version__,
+    "detectron2", getattr(detectron2, "__version__", "imported"),
+)
+print("archs", torch.cuda.get_arch_list())
+if not torch.cuda.is_available():
+    raise SystemExit("CUDA is not available. Check the NVIDIA driver on this pod.")
+name = torch.cuda.get_device_name(0)
+major, minor = torch.cuda.get_device_capability(0)
+needed = f"sm_{major}{minor}"
+archs = torch.cuda.get_arch_list()
+print("device", name, needed)
+if needed not in archs:
+    raise SystemExit(
+        f"{name} ({needed}) is not in this PyTorch build. Architectures: {archs}"
+    )
+torch.ones(1, device="cuda")
+torch.cuda.synchronize()
+print("cuda kernel ok")
 PY
 echo "Env 'relocate' is ready."

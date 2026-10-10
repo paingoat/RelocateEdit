@@ -27,6 +27,7 @@ Each folder still has its upstream `LICENSE`.
 - Empty `__init__.py` files so the folder can live inside this repo.
 - `dpt.py`: optional `max_depth`. When set, the head ends in a sigmoid and the output is in meters (metric checkpoints). Relative mode is unchanged: nonnegative disparity, larger means closer.
 - `dpt.py`: `image2tensor` uses `self.device` when the wrapper sets it.
+- `dinov2_layers/attention.py`: on a GPU the installed xformers binary does not cover, attention uses the PyTorch implementation. ViT-L, the default, goes through this module.
 
 ### LaMa
 
@@ -39,6 +40,7 @@ Each folder still has its upstream `LICENSE`.
 - `ldm/models/diffusion/ddpm.py`: `rank_zero_only` falls back to the Lightning 2.x path.
 - `cldm/model.py`: `torch.load(..., weights_only=False)`.
 - `dinov2/layers/swiglu_ffn.py`: the FFN is the local packed `w12`/`w3` module, with the same hidden-size rounding as upstream `SwiGLUFFNFused`. That matches `anydoor.ckpt`. xformers `SwiGLU` is not used, because its parameter names differ across releases. xformers can still accelerate attention.
+- Attention falls back to PyTorch SDPA when the installed xformers binary has no kernel for the GPU. The xformers 0.0.31 CUDA 12.8 wheel stops at Hopper, so Blackwell (`sm_120`) must not launch it.
 - `configs/anydoor.yaml` in this repo (not upstream): `cond_stage_config.params.weight` is null and the encoder is constructed on CPU. The wrapper moves the whole model afterwards.
 
 ## Import roots

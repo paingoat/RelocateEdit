@@ -7,6 +7,7 @@ from einops import rearrange, repeat
 from typing import Optional, Any
 
 from ldm.modules.diffusionmodules.util import checkpoint
+from relocate_edit.utils.xformers_compat import xformers_supports_device
 
 
 try:
@@ -229,8 +230,12 @@ class MemoryEfficientCrossAttention(nn.Module):
             (q, k, v),
         )
 
-        # actually compute the attention, what we cannot get enough of
-        out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None, op=self.attention_op)
+        # xformers 0.0.31 has no Blackwell kernel. Launching it poisons the CUDA
+        # context, so Hopper-and-older stays on xformers and sm_100/sm_120 use SDPA.
+        if XFORMERS_IS_AVAILBLE and xformers_supports_device(q.device):
+            out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None, op=self.attention_op)
+        else:
+            out = F.scaled_dot_product_attention(q, k, v)
 
         if exists(mask):
             raise NotImplementedError

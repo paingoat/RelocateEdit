@@ -1,5 +1,5 @@
 # Torch, torchvision, xformers, and detectron2 are installed by scripts/01_create_env.sh
-# because they must come from the CUDA 11.8 wheel index and a source build.
+# because they must come from the CUDA 12.8 wheel index and a source build.
 
 numpy==1.23.5
 pillow==9.5.0

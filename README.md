@@ -77,7 +77,7 @@ Bước 3 còn vẽ một ảnh "dán thử": cắt pixel gốc rồi đặt san
 
 ## Máy cần gì
 
-Chạy trên Linux có GPU NVIDIA. Script cài CUDA toolkit 11.8 trong conda và wheel PyTorch `cu118`.
+Chạy trên Linux có GPU NVIDIA. Script cài CUDA toolkit 12.8 trong conda và wheel PyTorch `cu128`. GPU Blackwell (RTX PRO 4500, dòng RTX 50, kiến trúc `sm_120`) không có kernel trong wheel CUDA 11.8.
 
 | Hạng mục | Mức |
 | --- | --- |
@@ -121,7 +121,7 @@ Cache Hugging Face nằm ở `/workspace/data/huggingface`. Script tạo `/works
 `setup.sh` chạy lần lượt:
 
 1. `scripts/00_install_miniconda.sh` — cài Miniconda vào `/workspace/miniconda3` (còn sau khi restart pod). Nếu không có `/workspace` thì cài vào `$HOME/miniconda3`.
-2. `scripts/01_create_env.sh` — env conda tên `relocate`, Python 3.10, CUDA toolkit 11.8, PyTorch 2.1.2, xformers, detectron2 (build từ fork `MaureenZOU/detectron2-xyz`), rồi `requirements.txt` (gồm `hf_transfer`).
+2. `scripts/01_create_env.sh` — env conda tên `relocate`, Python 3.10, CUDA toolkit 12.8, PyTorch 2.7.1+cu128, xformers 0.0.31, detectron2 (build từ fork `MaureenZOU/detectron2-xyz`, có `sm_120`), rồi `requirements.txt` (gồm `hf_transfer`).
 3. `scripts/02_download_weights.sh` — đọc `.env`, tải weight vào `/workspace/data`.
 
 Tải thêm depth metric (trong nhà / ngoài trời) và weight DINOv2 rời:
@@ -134,9 +134,11 @@ DINOv2 rời không bắt buộc. Checkpoint AnyDoor đã chứa weight ViT-g. C
 
 Cài lại riêng từng phần: `bash scripts/01_create_env.sh` hoặc `bash scripts/02_download_weights.sh`.
 
+Nếu app báo `no kernel image is available for execution on the device`, env vẫn đang dùng PyTorch CUDA 11.8. Chạy lại `bash scripts/01_create_env.sh`. Weight đã tải thì không cần chạy lại `setup.sh`.
+
 Env dùng một bộ thư viện cho cả bốn model. Code training và các pin xung đột nhau (Lightning 1.2 với 1.5, Gradio 3 với 4, transformers 4.19) không được cài. Transformers ở đây là 4.36.2 để vừa gọi được CLIP tokenizer của SEEM vừa thỏa Gradio. Chi tiết phần code giữ lại và chỗ đã sửa nằm ở [third_party/README.md](third_party/README.md).
 
-Pillow bị khóa ở 9.5 vì detectron2 còn gọi `Image.LINEAR`, hàm đã bị xóa ở Pillow 10. Script cũng cài GCC 11 và dùng nó khi build detectron2: `nvcc` của CUDA 11.8 từ chối GCC mới hơn 11, trong khi Ubuntu 24.04 mặc định là GCC 13.
+Pillow bị khóa ở 9.5 vì detectron2 còn gọi `Image.LINEAR`, hàm đã bị xóa ở Pillow 10. Script cài GCC 11 và dùng nó khi build detectron2, để Ubuntu 22.04 và 24.04 cùng một compiler. CUDA 12.8 chấp nhận GCC 11.
 
 ## Chạy Gradio, có link public
 

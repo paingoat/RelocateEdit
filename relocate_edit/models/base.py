@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import torch
 
-from relocate_edit.utils.devices import move_module, sync_stored_device
+from relocate_edit.utils.devices import (
+    move_module,
+    sync_stored_device,
+    unsupported_cuda_arch_message,
+)
 
 
 class BaseModelWrapper:
@@ -36,6 +40,27 @@ class BaseModelWrapper:
             raise RuntimeError(
                 f"{self.name} needs a CUDA GPU. The configured device is '{self.device}'."
             )
+        index = torch.cuda.current_device() if self.device.index is None else self.device.index
+        message = unsupported_cuda_arch_message(
+            torch.cuda.get_device_name(index),
+            torch.cuda.get_device_capability(index),
+            torch.cuda.get_arch_list(),
+            torch.__version__,
+            torch.version.cuda,
+        )
+        if message:
+            raise RuntimeError(message)
+        try:
+            torch.ones(1, device=self.device)
+            torch.cuda.synchronize(self.device)
+        except RuntimeError as exc:
+            if "no kernel image" not in str(exc):
+                raise
+            raise RuntimeError(
+                f"This PyTorch build ({torch.__version__}, CUDA {torch.version.cuda}) "
+                f"cannot run kernels on {torch.cuda.get_device_name(index)}. "
+                "Reinstall the environment with: bash scripts/01_create_env.sh"
+            ) from exc
 
     @staticmethod
     def require_file(path: str, hint: str):

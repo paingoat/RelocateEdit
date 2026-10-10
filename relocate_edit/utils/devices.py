@@ -7,6 +7,22 @@ import torch
 _MISSING = object()
 
 
+def unsupported_cuda_arch_message(device_name, capability, archs, torch_version, cuda_version):
+    """None when this PyTorch build contains a kernel for the GPU."""
+    major, minor = capability
+    needed = f"sm_{major}{minor}"
+    present = list(archs)
+    if needed in present:
+        return None
+    listed = ", ".join(present) if present else "none"
+    cuda = cuda_version or "unknown"
+    return (
+        f"{device_name} ({needed}) is not supported by this PyTorch build "
+        f"({torch_version}, CUDA {cuda}). Included architectures: {listed}. "
+        "Reinstall the environment with: bash scripts/01_create_env.sh"
+    )
+
+
 def torch_load(path, map_location="cpu"):
     try:
         return torch.load(path, map_location=map_location, weights_only=False)
