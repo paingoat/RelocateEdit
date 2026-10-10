@@ -130,7 +130,10 @@ python -m pip install --no-build-isolation --no-cache-dir --force-reinstall \
   "git+https://github.com/MaureenZOU/detectron2-xyz.git"
 rm -rf "${HOST_BIN}"
 
-python -m pip install --force-reinstall --no-deps pillow==9.5.0 numpy==1.23.5
+# detectron2's dependency install upgrades Pillow, NumPy, and setuptools.
+# Setuptools 82 dropped pkg_resources. LaMa's checkpoint unpickles
+# pytorch_lightning, and that import calls pkg_resources.
+python -m pip install --force-reinstall --no-deps pillow==9.5.0 numpy==1.23.5 setuptools==69.5.1
 
 python - <<'PY'
 import torch
